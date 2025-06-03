@@ -1,0 +1,274 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Savrcredit Card Reader</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f3f3f3;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      flex-direction: column;
+    }
+    .card-reader, .admin-panel {
+      background: white;
+      padding: 2rem;
+      border-radius: 1rem;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      width: 320px;
+      text-align: center;
+      margin-top: 1rem;
+    }
+    input, button, textarea {
+      width: 100%;
+      padding: 0.5rem;
+      margin: 0.5rem 0;
+      border-radius: 0.5rem;
+      border: 1px solid #ccc;
+    }
+    .balance {
+      font-size: 1.5rem;
+      margin: 1rem 0;
+    }
+    .log, .approved-list {
+      margin-top: 1rem;
+      text-align: left;
+      font-size: 0.9rem;
+      max-height: 100px;
+      overflow-y: auto;
+    }
+    .frozen {
+      color: red;
+      font-weight: bold;
+    }
+    #lockedScreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      color: white;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    #lockedScreen input {
+      max-width: 200px;
+    }
+  </style>
+</head>
+<body>
+  <div id="lockedScreen">
+    <h2>Enter STA Password</h2>
+    <input type="password" id="lockPassword" placeholder="STA Password" />
+    <button onclick="unlockScreen()">Unlock</button>
+  </div>
+
+
+  <div class="card-reader">
+    <h2>Savrcredit Card Reader</h2>
+    <div id="announcement"></div>
+    <input type="text" id="accountNumber" placeholder="Enter Account Number" />
+    <input type="password" id="staPassword" placeholder="STA Password (for registration/login only)" />
+    <button onclick="registerAccount()">Register Account</button>
+    <button onclick="loginSTA()">STA Login</button>
+    <div class="balance" id="balanceDisplay">Balance: Ȿ0</div>
+    <button onclick="fakeScan()">Scan Card</button>
+    <input type="number" id="amount" placeholder="Enter Amount" />
+    <button onclick="deposit()">Deposit</button>
+    <button onclick="withdraw()">Withdraw</button>
+    <div class="log" id="log"></div>
+  </div>
+
+
+  <div class="admin-panel" id="adminPanel" style="display:none">
+    <h3>STA Admin Dashboard</h3>
+    <div><strong>Approved Accounts:</strong></div>
+    <div class="approved-list" id="approvedList"></div>
+    <input type="text" id="targetAccount" placeholder="Account to Freeze/Delete" />
+    <button onclick="freezeAccount()">Freeze/Unfreeze Account</button>
+    <button onclick="deleteAccount()">Delete Account</button>
+    <button onclick="clearLogs()">Clear Log</button>
+    <button onclick="viewTotalBalance()">View Total System Balance</button>
+    <textarea id="announcementText" placeholder="Write announcement here..."></textarea>
+    <button onclick="postAnnouncement()">Post Announcement</button>
+    <div id="adminOutput"></div>
+  </div>
+
+
+  <script>
+    let balance = 0;
+    let totalSystemBalance = 0;
+    const approvedAccounts = new Set();
+    const accountBalances = {};
+    const frozenAccounts = new Set();
+    const STA_PASSWORD = "SavraSecure123";
+
+
+    function updateDisplay() {
+      document.getElementById("balanceDisplay").innerText = `Balance: Ȿ${balance}`;
+    }
+
+
+    function log(message) {
+      const logDiv = document.getElementById("log");
+      const time = new Date().toLocaleTimeString();
+      logDiv.innerHTML = `[${time}] ${message}<br>` + logDiv.innerHTML;
+    }
+
+
+    function fakeScan() {
+      const account = document.getElementById("accountNumber").value;
+      if (account) {
+        log(`Card scanned for account ${account}`);
+      } else {
+        alert("Please enter an account number.");
+      }
+    }
+
+
+    function registerAccount() {
+      const account = document.getElementById("accountNumber").value;
+      const password = document.getElementById("staPassword").value;
+      if (password === STA_PASSWORD && account) {
+        approvedAccounts.add(account);
+        accountBalances[account] = 0;
+        log(`Account ${account} registered by STA.`);
+        alert(`Account ${account} registered successfully.`);
+        updateApprovedList();
+      } else {
+        alert("Incorrect STA password or missing account number.");
+      }
+    }
+
+
+    function loginSTA() {
+      const password = document.getElementById("staPassword").value;
+      if (password === STA_PASSWORD) {
+        document.getElementById("adminPanel").style.display = "block";
+        updateApprovedList();
+        log("STA Admin logged in.");
+      } else {
+        alert("Incorrect STA password.");
+      }
+    }
+
+
+    function updateApprovedList() {
+      const listDiv = document.getElementById("approvedList");
+      listDiv.innerHTML = Array.from(approvedAccounts).map(a => `⦿ ${a} ${frozenAccounts.has(a) ? '<span class="frozen' + '">(Frozen)</span>' : ''}`).join("<br>");
+    }
+
+
+    function deposit() {
+      const account = document.getElementById("accountNumber").value;
+      const amount = parseInt(document.getElementById("amount").value);
+      if (!approvedAccounts.has(account)) return alert("Error: Account not found or not registered.");
+      if (frozenAccounts.has(account)) return alert("This account is currently frozen.");
+      if (!isNaN(amount) && amount > 0) {
+        balance += amount;
+        accountBalances[account] += amount;
+        totalSystemBalance += amount;
+        updateDisplay();
+        log(`Deposited Ȿ${amount} to ${account}`);
+      } else {
+        alert("Enter a valid amount.");
+      }
+    }
+
+
+    function withdraw() {
+      const account = document.getElementById("accountNumber").value;
+      const amount = parseInt(document.getElementById("amount").value);
+      if (!approvedAccounts.has(account)) return alert("Error: Account not found or not registered.");
+      if (frozenAccounts.has(account)) return alert("This account is currently frozen.");
+      if (!isNaN(amount) && amount > 0) {
+        if (accountBalances[account] >= amount) {
+          balance -= amount;
+          accountBalances[account] -= amount;
+          totalSystemBalance -= amount;
+          updateDisplay();
+          log(`Withdrew Ȿ${amount} from ${account}`);
+        } else {
+          alert("Insufficient funds in this account.");
+        }
+      } else {
+        alert("Enter a valid amount.");
+      }
+    }
+
+
+    function clearLogs() {
+      document.getElementById("log").innerHTML = "";
+      log("STA cleared the log.");
+    }
+
+
+    function viewTotalBalance() {
+      const output = document.getElementById("adminOutput");
+      output.innerText = `Total Savracredits in System: Ȿ${totalSystemBalance}`;
+    }
+
+
+    function freezeAccount() {
+      const target = document.getElementById("targetAccount").value;
+      if (approvedAccounts.has(target)) {
+        if (frozenAccounts.has(target)) {
+          frozenAccounts.delete(target);
+          log(`Unfroze account ${target}`);
+        } else {
+          frozenAccounts.add(target);
+          log(`Froze account ${target}`);
+        }
+        updateApprovedList();
+      } else {
+        alert("Account not found.");
+      }
+    }
+
+
+    function deleteAccount() {
+      const target = document.getElementById("targetAccount").value;
+      if (approvedAccounts.has(target)) {
+        approvedAccounts.delete(target);
+        frozenAccounts.delete(target);
+        totalSystemBalance -= accountBalances[target];
+        delete accountBalances[target];
+        log(`Deleted account ${target}`);
+        updateApprovedList();
+      } else {
+        alert("Account not found.");
+      }
+    }
+
+
+    function postAnnouncement() {
+      const text = document.getElementById("announcementText").value;
+      document.getElementById("announcement").innerHTML = `<div><strong>📢 Announcement:</strong> ${text}</div>`;
+      log("Admin posted an announcement.");
+    }
+
+
+    function unlockScreen() {
+      const input = document.getElementById("lockPassword").value;
+      if (input === STA_PASSWORD) {
+        document.getElementById("lockedScreen").style.display = "none";
+        log("Device unlocked.");
+      } else {
+        alert("Incorrect STA password.");
+      }
+    }
+
+
+    // Lock the screen immediately
+    document.getElementById("lockedScreen").style.display = "flex";
+  </script>
+</body>
+</html>
